@@ -8,20 +8,51 @@ conn = sqlite3.connect('adej.sqlite3')
 cur = conn.cursor()
 
 
-def table_to_json(clm, tab):
-  len_clm = len(clm)
+meta = {
+    'disclaimer': 'Adej is a beta research project and not for clinical use.',
+    'terms_of_data_service': 'http://www.info.pmda.go.jp/fukusayou/consentDownLoad.html',
+    'last_updated': '2014-08-06'
+}
+
+
+def table_to_dict(cl, tab):
+  len_cl = len(cl)
 
   if type(tab) == tuple:
     param = dict()
-    for i in range(0, len_clm):
-      param[clm[i]] = tab[i]
+    for i in range(0, len_cl):
+      param[cl[i]] = tab[i]
   elif type(tab) == list:
     param = list()
     for r in tab:
       p = dict()
-      for i in range(0, len_clm):
-        p[clm[i]] = r[i]
+      for i in range(0, len_cl):
+        p[cl[i]] = r[i]
       param.append(p)
+
+  return param
+
+
+@route('/case/:case_id')
+def case(case_id):
+  param = {
+      'meta': meta,
+      'results': dict()
+  }
+  cls = {
+      'demo': ('case_id', 'freq', 'sex', 'age', 'weight', 'height', 'quarter', 'status', 'report', 'reporter'),
+      'drug': ('case_id', 'freq', 'sn', 'association', 'name', 'brand', 'route', 'start_date', 'end_date', 'dosage', 'unit', 'fraction', 'reason', 'fix', 'relapse'),
+      'reac': ('case_id', 'freq', 'sn', 'event', 'outcome', 'onset_date'),
+      'hist': ('case_id', 'freq', 'sn', 'disease')
+  }
+
+  for tab in cls:
+    cur.execute('SELECT ' + ', '.join(cls[tab]) + ' FROM ' + tab + ' WHERE case_id == ?;', (str(case_id),))
+    if tab == 'demo':
+      res = cur.fetchone()
+    else:
+      res = cur.fetchall()
+    param['results'][tab] = table_to_dict(cls[tab], res)
 
   return json.dumps(param, ensure_ascii=False)
 
@@ -29,34 +60,6 @@ def table_to_json(clm, tab):
 @route('/')
 def index():
   return 'root'
-
-
-@route('/demo/:case_id')
-def demo(case_id):
-  clm = ('case_id', 'freq', 'sex', 'age', 'weight', 'height', 'quarter', 'status', 'report', 'reporter')
-  cur.execute('SELECT ' + ', '.join(clm) + ' FROM demo WHERE case_id == ?;', (str(case_id),))
-  return table_to_json(clm, cur.fetchone())
-
-
-@route('/drug/:case_id')
-def drug(case_id):
-  clm = ('case_id', 'freq', 'sn', 'association', 'name', 'brand', 'route', 'start_date', 'end_date', 'dosage', 'unit', 'fraction', 'reason', 'fix', 'relapse')
-  cur.execute('SELECT * FROM drug WHERE case_id == ?;', (str(case_id),))
-  return table_to_json(clm, cur.fetchall())
-
-
-@route('/hist/:case_id')
-def reac(case_id):
-  clm = ('case_id', 'freq', 'sn', 'event', 'outcome', 'onset_date')
-  cur.execute('SELECT ' + ', '.join(clm) + ' FROM reac WHERE case_id == ?;', (str(case_id),))
-  return table_to_json(clm, cur.fetchall())
-
-
-@route('/reac/:case_id')
-def hist(case_id):
-  clm = ('case_id', 'freq', 'sn', 'disease')
-  cur.execute('SELECT ' + ', '.join(clm) + ' FROM hist WHERE case_id == ?;', (str(case_id),))
-  return table_to_json(clm, cur.fetchall())
 
 
 run(host='localhost', port=8000, debug=True, reloader=True)
